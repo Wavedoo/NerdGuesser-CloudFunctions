@@ -11,7 +11,7 @@
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { auth } from "firebase-functions/v1";
-import { getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/scheduler";
 
 // Start writing functions
@@ -47,6 +47,8 @@ export interface StatsAnime {
     fifthFrameGuesses: number,
     sixthFrameGuesses: number,
     failedGuesses: number,
+    //I could add a complex system where it's like 1-6 = incomplete, 7-12 complete, 13 = failed
+    guessesList: Array<number>
     completionList: Array<number>
 }
 
@@ -69,6 +71,8 @@ exports.createFirestoreDocuments = auth.user().onCreate(async (user) => {
         fifthFrameGuesses: 0,
         sixthFrameGuesses: 0,
         failedGuesses: 0,
+        //Update on retrieving animeframegueser enabled games
+        guessesList: [],
         completionList: [],
     }
 
@@ -82,18 +86,29 @@ exports.createFirestoreDocuments = auth.user().onCreate(async (user) => {
     logger.log("Result", docRef.id);
 });
 
-exports.updateDaily = onSchedule({schedule:"every day 01:36", timeZone: "America/Toronto"}, async (event) => {
+exports.updateDaily = onSchedule({schedule:"every day 00:00", timeZone: "America/Toronto"}, async (event) => {
     const animeGamesRef = db.collection("AnimeFrameGuesser");
+    const animeListRef = db.collection("AnimeInformation").doc("FrameDays")
+
     //Gets the next daily game which is disabled, and the smallest day.
+    //The query itself isn't a read, but will only be read when get() is called
     const newGameQuery = animeGamesRef.where("enabled", "==", false).orderBy("day","asc").limit(1);
+    //Should be one read.
     const newGameSnapshot = await newGameQuery.get();
     
+
+
     if(!newGameSnapshot.empty){
         const gameDoc = newGameSnapshot.docs[0].ref
-        const gameDay = newGameSnapshot.docs[0].data()["day"]
+        const gameData = newGameSnapshot.docs[0].data()
+
         gameDoc.update({enabled: true})
-        globalRef.update({day: gameDay})
-        logger.log("Daily game updated.")
+        globalRef.update({day: gameData["day"]})
+        animeListRef.update({
+            IDs: FieldValue.arrayUnion(gameDoc.id)
+        })
+
+        logger.log("Daily game updated and added to list.")
     }else{
         logger.log("uh oh something went wrong.")
     }
