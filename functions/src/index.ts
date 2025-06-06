@@ -79,7 +79,7 @@ exports.createFirestoreDocuments = auth.user().onCreate(async (user) => {
     
     docRef.set(stats);
 
-    logger.log("Result", docRef.id);
+    logger.log("UserStatsAnime document created for ", docRef.id);
 });
 
 exports.updateDaily = onSchedule({schedule:"every day 00:00", timeZone: "America/Toronto"}, async (event) => {
@@ -108,4 +108,14 @@ exports.updateDaily = onSchedule({schedule:"every day 00:00", timeZone: "America
     }else{
         logger.log("uh oh something went wrong.")
     }
+});
+
+exports.deleteUserDocument = auth.user().onDelete(async (user) => {
+    const docRef = db
+        .collection("UserStatsAnime")
+        .doc(user.uid);
+
+    docRef.delete()
+
+    logger.log("UserStatsAnime ", docRef.id, " document deleted.");
 });
