@@ -56,9 +56,6 @@ export interface StatsAnime {
 
 //DOes this need to be async?
 exports.createFirestoreDocuments = auth.user().onCreate(async (user) => {
-    // TODO: Add prepopualted list.
-    // add 0s for the amount of games called but missing from list?
-
     let stats: StatsAnime = {
         gamesPlayed: 0,
         dailyPlayStreak: 0,
@@ -76,7 +73,6 @@ exports.createFirestoreDocuments = auth.user().onCreate(async (user) => {
         completionList: [],
     }
 
-    // const docRef = await getFirestore()
     const docRef = db
         .collection("UserStatsAnime")
         .doc(user.uid);
