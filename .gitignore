@@ -70,3 +70,5 @@ node_modules/
 
 #Emulator test data
 */test-data
+
+serviceaccount.json

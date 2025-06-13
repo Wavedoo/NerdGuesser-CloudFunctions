@@ -10,7 +10,9 @@
     "logs": "firebase functions:log",
     "emulator": "npm run build && firebase emulators:start",
     "export": "firebase emulators:export ./test-data",
-    "import": "npm run build && firebase emulators:start --import=./test-data"
+    "import": "npm run build && firebase emulators:start --import=./test-data",
+    "manual": "node lib/manual.js"
+  
   },
   "engines": {
     "node": "22"

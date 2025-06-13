@@ -110,6 +110,7 @@ exports.updateDaily = onSchedule({schedule:"every day 00:00", timeZone: "America
     }
 });
 
+//TODO: Handle the updating of the frame guesses
 exports.deleteUserDocument = auth.user().onDelete(async (user) => {
     const docRef = db
         .collection("UserStatsAnime")
