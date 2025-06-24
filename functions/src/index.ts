@@ -11,7 +11,7 @@
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { auth } from "firebase-functions/v1";
-import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
+import { CollectionReference, FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/scheduler";
 import { onDocumentWritten, Change, FirestoreEvent } from "firebase-functions/firestore";
 import { event } from "firebase-functions/v1/analytics";
@@ -61,10 +61,17 @@ exports.createFirestoreDocuments = auth.user().onCreate(async (user) => {
 
     logger.log("UserStatsAnime document created for ", docRef.id);
 
+    logger.log("Provider data length: ", user.providerData.length)
     //If is anonymous
     if(user.providerData.length == 0){
+        logger.log("Starting anonymousaccounts id creation")
         const anonRef = db.collection("AnonymousAccounts").doc(user.uid)
-        anonRef.set({lastActive: FieldValue.serverTimestamp })
+        logger.log("Document is: ", anonRef)
+        anonRef.set({lastActive: FieldValue.serverTimestamp()}).then(() =>{
+            logger.log("Successfully set AnonymousAccounts document")
+        }).catch((error) =>{
+            logger.error("Failed to set AnonymousAccounts document. Reason: ", error);
+        });
 
     }
 });
@@ -86,7 +93,7 @@ exports.updateDaily = onSchedule({schedule:"every day 00:00", timeZone: "America
         const gameData = newGameSnapshot.docs[0].data()
 
         gameDoc.update({enabled: true})
-        globalRef.update({day: gameData["animeDay"]})
+        globalRef.update({animeDay: gameData["day"]})
         animeListRef.update({
             IDs: FieldValue.arrayUnion(gameDoc.id)
         })
@@ -97,16 +104,29 @@ exports.updateDaily = onSchedule({schedule:"every day 00:00", timeZone: "America
     }
 });
 
-//TODO: Handle the updating of the frame guesses
+//TODO: Add the delte extension
+//Nevermind it costs too much money ($0.01 / month)
 exports.deleteUserDocument = auth.user().onDelete(async (user) => {
-    const docRef = db
+/*     const docRef = db
         .collection("UserStatsAnime")
         .doc(user.uid);
 
     docRef.delete()
 
-    logger.log("UserStatsAnime ", docRef.id, " document deleted.");
+    logger.log("UserStatsAnime ", docRef.id, " document deleted."); */
+    const userStatsAnimeCol = db.collection("UserStatsAnime")
+    const userGuessesAnimeCol = db.collection("UserGuessesAnime")
+    const anonymousCol = db.collection("AnonymousAccounts")
+    deleteDocumentsWithUserIdDocumentId(userStatsAnimeCol, user.uid)
+    deleteDocumentsWithUserIdField(userGuessesAnimeCol, user.uid)
+    //If user is anonymous
+    if(user.providerData.length == 0){
+        deleteDocumentsWithUserIdDocumentId(anonymousCol, user.uid)
+    }
+    
 });
+
+
 
 //TODO: Optimize?
 exports.updateGameDocument = onDocumentWritten("UserGuessesAnime/{documentId}", (event) => {
@@ -194,6 +214,31 @@ function getFieldFromGuess(guess: number): string {
     }
 }
 
+async function deleteDocumentsWithUserIdDocumentId(collection: CollectionReference, userId: string){
+    const userDoc = collection.doc(userId)
+    userDoc.delete().then(() => {
+        logger.log(userId + " successfully deleted in " + collection.id)
+    }).catch((error) => {
+        logger.error(userId + " could not be deleted in " + collection.id + "\n" + error)
+    });
+}
+
+async function deleteDocumentsWithUserIdField(collection: CollectionReference, userId: string, fieldName: string = "uid"){
+    const userQuerySnap = await collection.where(fieldName, "==", userId).get()
+
+    
+    if(!userQuerySnap.empty){
+        let promises: Promise<any>[] = []
+        userQuerySnap.docs.forEach((doc) => {
+            promises.push(doc.ref.delete())
+        });
+        Promise.all(promises).then(() =>{
+            logger.log("Successfully deleted all documents in " + collection + " where " + fieldName + " == " + userId)
+        }).catch(() => {
+            logger.error("Failed to delete all documents in " + collection + " where " + fieldName + " == " + userId)
+        });
+    }
+}
 // function 
 //So the 
 //What was I cooking

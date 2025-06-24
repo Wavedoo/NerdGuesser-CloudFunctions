@@ -4,7 +4,7 @@ It's the line import credential I believe
 */
 
 
-import { credential, firestore } from "firebase-admin"
+import { auth, credential, firestore } from "firebase-admin"
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { projectID } from "firebase-functions/params";
@@ -21,6 +21,8 @@ firestore().settings({
     host: 'localhost:8080',
     ssl: false
 });
+process.env.FIREBASE_AUTH_EMULATOR_HOST = "localhost:9099";
+
 const db = firestore();
 const gamesRef = db.collection("AnimeFrameGuesser");
 const guessesRef = db.collection("UserGuessesAnime");
@@ -101,12 +103,13 @@ export async function populateGames(){
 }
 
 //const manual = require('./lib/manual');
-export async function createUserGuess(num: number){
+export async function createUserGuess(num: number = 3){
     console.log("Create a user guess")
     let id = (await gamesRef.get()).docs[0].id
     console.log("ID: ", id)
-
-    guessesRef.add({gameId: id, guess: num})
+    let uid = (await auth().listUsers(1)).users[0].uid
+    console.log("UID: ", uid)
+    guessesRef.add({gameId: id, guess: num, uid: uid})
 }
 function roundIt(value: number){
     return Math.round(value * 100) / 100
