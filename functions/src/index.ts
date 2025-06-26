@@ -17,6 +17,7 @@ import { onDocumentWritten, Change, FirestoreEvent } from "firebase-functions/fi
 import { event } from "firebase-functions/v1/analytics";
 import { StatsAnime, GuessDocument, AnonymousAccount, FrameGuessesData } from "./interfaces"; 
 import { firestore } from "firebase-admin";
+import { getAuth } from "firebase-admin/auth";
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
@@ -29,6 +30,7 @@ import { firestore } from "firebase-admin";
 initializeApp();
 
 const db = getFirestore();
+const authentication = getAuth();
 
 const globalRef = db.collection("other").doc("global")
 
@@ -79,7 +81,14 @@ exports.createFirestoreDocuments = auth.user().onCreate(async (user) => {
 exports.updateDaily = onSchedule({schedule:"every day 00:00", timeZone: "America/Toronto"}, async (event) => {
     const animeGamesRef = db.collection("AnimeFrameGuesser");
     const animeListRef = db.collection("AnimeInformation").doc("FrameDays")
-
+    const oldGameSnap =  await animeGamesRef.where("enabled", "==", true).orderBy("day", "desc").limit(1).get()
+    //If the game has not been played then do not update daily
+    if(!oldGameSnap.empty){
+        const oldData = oldGameSnap.docs[0].data();
+        if(oldData["totalGuesses"] == 0){
+            return
+        }
+    }
     //Gets the next daily game which is disabled, and the smallest day.
     //The query itself isn't a read, but will only be read when get() is called
     const newGameQuery = animeGamesRef.where("enabled", "==", false).orderBy("day","asc").limit(1);
@@ -189,6 +198,32 @@ exports.updateGameDocument = onDocumentWritten("UserGuessesAnime/{documentId}", 
     }
 });
 
+
+/*
+monthly:
+if proverdata.length == 0 and lastActive > 30 days ago
+    delete all docs with uid = anon
+if pprovierdata.length > 0 
+    delete anonDocument
+*/
+exports.deleteInactiveAnonymousAccounts = onSchedule({schedule:"every day 00:00", timeZone: "America/Toronto"}, async (event) => {
+    const guestCollection = db.collection("AnonymousAccounts");
+    const thirtyDaysAgoDate = new Date();
+    thirtyDaysAgoDate.setDate(thirtyDaysAgoDate.getDate() - 30);
+    const inactiveQuerySnap = await guestCollection.where("lastActive", "<", Timestamp.fromDate(thirtyDaysAgoDate)).get()
+    
+    if(!inactiveQuerySnap.empty){
+        inactiveQuerySnap.docs.forEach((doc) => {
+            let userId = doc.id
+            authentication.deleteUser(userId).then(() => {
+                logger.log("Deleted anonymous account: ", userId);
+            }).catch(() =>{
+                logger.error("Could not delete anonymous account: ", userId);
+            });
+        });
+    }
+});
+
 function roundFourPlaces(value: number) {
   return Math.round(value * 10000) / 10000
 }
@@ -242,11 +277,3 @@ async function deleteDocumentsWithUserIdField(collection: CollectionReference, u
 // function 
 //So the 
 //What was I cooking
-
-/*
-monthly:
-if proverdata.length == 0 and lastActive > 30 days ago
-    delete all docs with uid = anon
-if pprovierdata.length > 0 
-    delete anonDocument
-*/
