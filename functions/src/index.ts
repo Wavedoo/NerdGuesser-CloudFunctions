@@ -143,6 +143,10 @@ exports.updateGameDocument = onDocumentWritten("UserGuessesAnime/{documentId}", 
         return
     }
     const documentData = event.data!!.after.data()
+    if(documentData?.complete ?? false == false){
+        //Do not continue if the game is incomplete
+        return
+    }
     const guessField = getFieldFromGuess(documentData?.guess ?? -1)
     const gameId = documentData?.gameId
     if(!gameId){
